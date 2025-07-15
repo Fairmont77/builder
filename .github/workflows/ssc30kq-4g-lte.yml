@@ -58,20 +58,25 @@ jobs:
     - name: Check build output
       run: |
         echo "=== Build directory contents ==="
-        find ./output -name "*.bin" -o -name "*.img" -o -name "*.squashfs" 2>/dev/null || true
-        echo "=== Complete output structure ==="
+        find . -name "*.tgz" -o -name "*.bin" -o -name "*.img" -o -name "*.squashfs" 2>/dev/null || true
+        echo "=== Archive directory ==="
+        ls -la ./archive/ 2>/dev/null || echo "No archive directory found"
+        find ./archive/ -type f 2>/dev/null || true
+        echo "=== Output directory ==="
         ls -la ./output/ 2>/dev/null || echo "No output directory found"
-        if [ -d "./output/images" ]; then
-          echo "=== Images directory ==="
-          ls -la ./output/images/
-        fi
     
     - name: Prepare release files
       if: success()
       run: |
         mkdir -p release-files
         
-        # Find and copy firmware files
+        # Find and copy firmware files from archive
+        find ./archive -name "*.tgz" -exec cp {} release-files/ \; 2>/dev/null || true
+        find ./archive -name "*.bin" -exec cp {} release-files/ \; 2>/dev/null || true
+        find ./archive -name "*.img" -exec cp {} release-files/ \; 2>/dev/null || true
+        find ./archive -name "*.squashfs" -exec cp {} release-files/ \; 2>/dev/null || true
+        
+        # Also check output directory
         find ./output -name "*.bin" -exec cp {} release-files/ \; 2>/dev/null || true
         find ./output -name "*.img" -exec cp {} release-files/ \; 2>/dev/null || true
         find ./output -name "*.squashfs" -exec cp {} release-files/ \; 2>/dev/null || true
