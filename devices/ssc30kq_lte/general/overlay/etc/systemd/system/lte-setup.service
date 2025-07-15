@@ -1,0 +1,12 @@
+[Unit]
+Description=Huawei E3372h LTE Modem Setup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/lte-setup.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
