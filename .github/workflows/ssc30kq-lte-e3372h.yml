@@ -1,0 +1,133 @@
+name: Build SSC30KQ LTE E3372h
+
+on:
+  push:
+    paths:
+      - 'devices/ssc30kq_lte_huawei-e3372h/**'
+      - 'br-ext-chip-sigmastar/board/infinity6e/infinity6e-ssc012b-lte.config'
+      - '.github/workflows/ssc30kq-lte-e3372h.yml'
+  pull_request:
+    paths:
+      - 'devices/ssc30kq_lte_huawei-e3372h/**'
+      - 'br-ext-chip-sigmastar/board/infinity6e/infinity6e-ssc012b-lte.config'
+      - '.github/workflows/ssc30kq-lte-e3372h.yml'
+  workflow_dispatch:
+
+env:
+  TAG_NAME: latest
+
+jobs:
+  build-ssc30kq-lte:
+    name: SSC30KQ LTE E3372h
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout source
+      uses: actions/checkout@v4
+
+    - name: Prepare firmware
+      run: |
+        echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+        echo CACHE_DATE=$(date +%m) >> ${GITHUB_ENV}
+
+    - name: Setup ccache
+      uses: actions/cache@v4
+      with:
+        path: /tmp/ccache
+        key: ssc30kq-lte-e3372h-${{env.CACHE_DATE}}
+
+    - name: Build firmware
+      run: |
+        export GIT_HASH=$(git rev-parse --short ${GITHUB_SHA})
+        export GIT_BRANCH=${GITHUB_REF_NAME}
+        echo GIT_HASH=${GIT_HASH} >> ${GITHUB_ENV}
+        echo GIT_BRANCH=${GIT_BRANCH} >> ${GITHUB_ENV}
+
+        mkdir -p /tmp/ccache
+        ln -s /tmp/ccache ${HOME}/.ccache
+
+        NAME="ssc30kq_lte_huawei-e3372h"
+        echo "Building firmware for: ${NAME}"
+        
+        bash builder.sh ${NAME}
+        cd openipc
+
+        TIME=$(date -d @${SECONDS} +%M:%S)
+        echo TIME=${TIME} >> ${GITHUB_ENV}
+
+        NORFW=$(find output/images -name openipc*nor*)
+        if [ ! -z ${NORFW} ]; then
+          mv ${NORFW} ../${NAME}-nor.tgz
+          echo NORFW=${NAME}-nor.tgz >> ${GITHUB_ENV}
+        fi
+
+        NANDFW=$(find output/images -name openipc*nand*)
+        if [ ! -z ${NANDFW} ]; then
+          mv ${NANDFW} ../${NAME}-nand.tgz
+          echo NANDFW=${NAME}-nand.tgz >> ${GITHUB_ENV}
+        fi
+
+        if [ -z ${NORFW} ] && [ -z ${NANDFW} ]; then
+          echo "No firmware files found!"
+          exit 1
+        fi
+
+    - name: Upload firmware artifacts
+      if: env.NORFW || env.NANDFW
+      uses: actions/upload-artifact@v4
+      with:
+        name: ssc30kq-lte-e3372h-firmware-${{ github.sha }}
+        path: |
+          ${{env.NORFW}}
+          ${{env.NANDFW}}
+        retention-days: 30
+
+    - name: Upload firmware to releases
+      if: env.NORFW || env.NANDFW
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: ssc30kq-lte-e3372h-${{ github.run_number }}
+        name: "SSC30KQ LTE E3372h Firmware v${{ github.run_number }}"
+        body: |
+          ## SSC30KQ LTE E3372h Firmware Build
+          
+          ### Device Specifications
+          - **SoC**: Sigmastar SSC30KQ (Infinity6E)
+          - **Flash**: 16MB
+          - **Variant**: Ultimate with LTE
+          
+          ### Features
+          - 🌐 **Dual LTE Support**: QMI modems (primary) + E3372h (fallback)
+          - 🔒 **Multiple VPN**: WireGuard + VTund + ZeroTier
+          - 📹 **Full Ultimate**: Majestic WebUI, LAME, OPUS audio
+          - 🛠️ **Network Tools**: PPP, comgt, bridge, iptables
+          - 📶 **WiFi AP**: WPA Supplicant with AP mode
+          
+          ### LTE Modem Support
+          - **Primary**: QMI-compatible modems (modern 4G/LTE)
+          - **Fallback**: Huawei E3372h USB dongle
+          - **Auto-detection**: Automatic modem type detection
+          - **Legacy Support**: PPP with comgt for older modems
+          
+          ### Installation
+          ```bash
+          # Flash firmware
+          sysupgrade ${{env.NORFW}}
+          ```
+          
+          **Build Date**: $(date)  
+          **Commit**: ${{ github.sha }}
+        files: |
+          ${{env.NORFW}}
+          ${{env.NANDFW}}
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build status
+      run: |
+        echo "✅ Build completed successfully!"
+        echo "📦 Firmware: ${{env.NORFW}}"
+        echo "⏱️  Build time: ${{env.TIME}}"
+        echo "📝 Commit: ${{env.GIT_HASH}}"

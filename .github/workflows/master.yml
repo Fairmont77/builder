@@ -1,7 +1,5 @@
 name: Build
 on:
-  push:
-    branches: [ master ]
   schedule:
     - cron: '0 3 * * *'
   workflow_dispatch:
@@ -115,7 +113,6 @@ jobs:
           - gk7205v200_lte
           - gk7205v300_lte
           - ssc30kq_lte
-          - ssc30kq_lte_huawei-e3372h
 
           # Venc
           - gk7205v200_venc
