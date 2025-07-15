@@ -112,6 +112,7 @@ jobs:
           - hi3516ev300_lte
           - gk7205v200_lte
           - gk7205v300_lte
+          - ssc30kq_lte
 
           # Venc
           - gk7205v200_venc
