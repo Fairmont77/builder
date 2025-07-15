@@ -1,0 +1,46 @@
+#!/bin/sh
+
+set_gpio() {
+	[ "$2" -eq 1 ] && gpio set $1 || gpio clear $1
+	sleep 1
+}
+
+# SSC30KQ with Huawei E3372h
+if [ "$1" = "huawei-e3372h-ssc30kq" ]; then
+	echo "Initializing Huawei E3372h LTE modem..."
+	
+	# Load necessary kernel modules
+	modprobe usbserial vendor=0x12d1 product=0x14dc
+	modprobe cdc_ether
+	modprobe rndis_host
+	
+	# Power on USB (adjust GPIO pins according to your board)
+	# You may need to adjust these GPIO pins based on your board layout
+	# set_gpio 10 1  # USB power enable
+	
+	# Wait for modem initialization
+	sleep 10
+	
+	# Check if eth1 or usb0 interface appeared
+	if ifconfig -a | grep -E "eth1|usb0" > /dev/null; then
+		echo "LTE modem interface detected"
+		
+		# Configure the interface (usually gets IP via DHCP from modem)
+		if ifconfig -a | grep "eth1" > /dev/null; then
+			udhcpc -i eth1
+		elif ifconfig -a | grep "usb0" > /dev/null; then
+			udhcpc -i usb0
+		fi
+		
+		# Optional: Send AT commands to configure APN
+		# You can use /dev/ttyUSB0 for AT commands if needed
+		# echo "AT+CGDCONT=1,\"IP\",\"your.apn.here\"" > /dev/ttyUSB0
+		
+		exit 0
+	else
+		echo "LTE modem interface not found"
+		exit 1
+	fi
+fi
+
+exit 1

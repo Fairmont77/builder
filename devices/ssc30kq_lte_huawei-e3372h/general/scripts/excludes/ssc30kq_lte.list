@@ -1,0 +1,5 @@
+# Remove unnecessary files for SSC30KQ LTE to save space
+/usr/share/sounds
+/usr/share/zoneinfo
+/etc/ssl/man
+/usr/lib/libstdc++.so.6.0.25-gdb.py

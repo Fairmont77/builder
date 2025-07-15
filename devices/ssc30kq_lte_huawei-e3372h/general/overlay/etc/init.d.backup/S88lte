@@ -1,0 +1,59 @@
+#!/bin/sh
+
+case "$1" in
+    start)
+        echo "Starting LTE modem..."
+        
+        # Check if LTE is enabled
+        if [ "$(fw_printenv -n enable_lte 2>/dev/null)" = "true" ]; then
+            # Get modem device name
+            MODEM_DEV=$(fw_printenv -n wlandev 2>/dev/null)
+            
+            if [ -n "$MODEM_DEV" ]; then
+                echo "Initializing modem: $MODEM_DEV"
+                /etc/wireless/modem $MODEM_DEV
+                
+                # Check result
+                if [ $? -eq 0 ]; then
+                    echo "LTE modem started successfully"
+                    
+                    # Optional: Set default route through LTE interface
+                    # This will be done automatically if DHCP is used
+                    
+                    # Log the IP address
+                    sleep 2
+                    if ifconfig eth1 >/dev/null 2>&1; then
+                        IP=$(ifconfig eth1 | grep "inet addr" | cut -d: -f2 | cut -d' ' -f1)
+                        echo "LTE IP address: $IP"
+                    elif ifconfig usb0 >/dev/null 2>&1; then
+                        IP=$(ifconfig usb0 | grep "inet addr" | cut -d: -f2 | cut -d' ' -f1)
+                        echo "LTE IP address: $IP"
+                    fi
+                else
+                    echo "Failed to start LTE modem"
+                fi
+            else
+                echo "No LTE modem device configured"
+            fi
+        else
+            echo "LTE is disabled"
+        fi
+        ;;
+    stop)
+        echo "Stopping LTE modem..."
+        # Bring down the interface
+        ifconfig eth1 down 2>/dev/null
+        ifconfig usb0 down 2>/dev/null
+        ;;
+    restart)
+        $0 stop
+        sleep 2
+        $0 start
+        ;;
+    *)
+        echo "Usage: $0 {start|stop|restart}"
+        exit 1
+        ;;
+esac
+
+exit 0
