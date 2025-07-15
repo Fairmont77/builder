@@ -1,0 +1,156 @@
+name: Build SSC30KQ 4G LTE Firmware
+
+on:
+  push:
+    paths:
+      - 'devices/ssc30kq_4g_lte/**'
+      - '.github/workflows/ssc30kq-4g-lte.yml'
+  pull_request:
+    paths:
+      - 'devices/ssc30kq_4g_lte/**'
+      - '.github/workflows/ssc30kq-4g-lte.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    
+    - name: Set up build environment
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          build-essential \
+          git \
+          curl \
+          wget \
+          rsync \
+          bc \
+          cpio \
+          python3 \
+          unzip \
+          ncurses-dev \
+          libssl-dev \
+          device-tree-compiler \
+          ccache
+    
+    - name: Set up ccache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ssc30kq-4g-lte-${{ github.sha }}
+        restore-keys: |
+          ssc30kq-4g-lte-
+        max-size: 2G
+    
+    - name: Build firmware
+      run: |
+        export USE_CCACHE=1
+        export PATH="/usr/lib/ccache:$PATH"
+        ./builder.sh ssc30kq_4g_lte
+      env:
+        CCACHE_DIR: ~/.ccache
+    
+    - name: Check build output
+      run: |
+        echo "=== Build directory contents ==="
+        find ./output -name "*.bin" -o -name "*.img" -o -name "*.squashfs" 2>/dev/null || true
+        echo "=== Complete output structure ==="
+        ls -la ./output/ 2>/dev/null || echo "No output directory found"
+        if [ -d "./output/images" ]; then
+          echo "=== Images directory ==="
+          ls -la ./output/images/
+        fi
+    
+    - name: Prepare release files
+      if: success()
+      run: |
+        mkdir -p release-files
+        
+        # Find and copy firmware files
+        find ./output -name "*.bin" -exec cp {} release-files/ \; 2>/dev/null || true
+        find ./output -name "*.img" -exec cp {} release-files/ \; 2>/dev/null || true
+        find ./output -name "*.squashfs" -exec cp {} release-files/ \; 2>/dev/null || true
+        
+        # Create info file
+        cat > release-files/build-info.txt << EOF
+        Build Date: $(date)
+        Commit: ${{ github.sha }}
+        Branch: ${{ github.ref_name }}
+        Device: SSC30KQ with 4G LTE and WireGuard
+        Features:
+        - Sigmastar SSC30KQ (Infinity6E)
+        - QMI LTE modem support (primary)
+        - E3372h USB modem support (fallback)
+        - WireGuard VPN
+        - FPV capabilities
+        - Web UI
+        - SSH access
+        
+        Files included:
+        $(ls -la release-files/ | grep -v "^total\|^d")
+        EOF
+        
+        echo "=== Release files prepared ==="
+        ls -la release-files/
+    
+    - name: Upload firmware artifacts
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: ssc30kq-4g-lte-firmware-${{ github.sha }}
+        path: release-files/
+        retention-days: 30
+    
+    - name: Create Release
+      if: github.event_name == 'push' && github.ref == 'refs/heads/master' && success()
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ssc30kq-4g-lte-${{ github.run_number }}
+        name: "SSC30KQ 4G LTE Firmware v${{ github.run_number }}"
+        body: |
+          ## SSC30KQ 4G LTE Firmware Build
+          
+          ### Device Specifications
+          - **SoC**: Sigmastar SSC30KQ (Infinity6E)
+          - **Flash**: 16MB
+          - **Variant**: FPV with 4G LTE
+          
+          ### Features
+          - 🌐 **Dual LTE Support**: QMI modems (primary) + E3372h (fallback)
+          - 🔒 **WireGuard VPN**: Built-in VPN support
+          - 📹 **FPV Ready**: Majestic streaming with WebUI
+          - 🛠️ **Network Tools**: Bridge, iptables, PPP support
+          - 🔧 **Management**: SSH access, YAML configuration
+          
+          ### LTE Modem Support
+          - **Primary**: QMI-compatible modems (modern 4G/LTE)
+          - **Fallback**: Huawei E3372h USB dongle
+          - **Auto-detection**: Automatic modem type detection
+          - **APN**: Configurable (default: o2internet)
+          
+          ### Installation
+          ```bash
+          # Backup current firmware first!
+          sysupgrade -b /tmp/backup.tar.gz
+          
+          # Flash new firmware (replace X with actual filename)
+          sysupgrade openipc-ssc30kq-4g-lte-X.bin
+          ```
+          
+          ### Configuration
+          - **WireGuard**: Edit `/etc/wireguard.conf`
+          - **LTE APN**: Modify `/usr/bin/setup_wwan.sh`
+          - **Network**: Configure via `/etc/network/interfaces.d/`
+          
+          **Build Date**: ${{ steps.date.outputs.date }}  
+          **Commit**: ${{ github.sha }}
+        files: release-files/*
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
