@@ -1,0 +1,118 @@
+name: Build SSC30KQ LTE
+on:
+  workflow_dispatch:
+    inputs:
+      clean_build:
+        description: 'Clean build (delete cache)'
+        required: false
+        default: 'false'
+        type: boolean
+  push:
+    paths:
+      - 'devices/ssc30kq_lte/**'
+      - '.github/workflows/ssc30kq-lte.yml'
+
+env:
+  TAG_NAME: latest
+
+jobs:
+  build_ssc30kq_lte:
+    name: SSC30KQ LTE Firmware
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Prepare firmware
+        run: |
+          echo "nameserver 8.8.8.8" | sudo tee /etc/resolv.conf
+          echo CACHE_DATE=$(date +%m) >> ${GITHUB_ENV}
+
+      - name: Setup ccache
+        if: inputs.clean_build != 'true'
+        uses: actions/cache@v4
+        with:
+          path: /tmp/ccache
+          key: ssc30kq_lte-${{env.CACHE_DATE}}
+
+      - name: Build SSC30KQ LTE firmware
+        run: |
+          export GIT_HASH=$(git rev-parse --short ${GITHUB_SHA})
+          export GIT_BRANCH=${GITHUB_REF_NAME}
+          echo GIT_HASH=${GIT_HASH} >> ${GITHUB_ENV}
+          echo GIT_BRANCH=${GIT_BRANCH} >> ${GITHUB_ENV}
+
+          mkdir -p /tmp/ccache
+          ln -s /tmp/ccache ${HOME}/.ccache
+
+          echo "🚀 Building SSC30KQ LTE with E3372h support + WireGuard"
+          bash builder.sh ssc30kq_lte
+          cd openipc
+
+          TIME=$(date -d @${SECONDS} +%M:%S)
+          echo TIME=${TIME} >> ${GITHUB_ENV}
+
+          NORFW=$(find output/images -name openipc*nor*)
+          if [ ! -z ${NORFW} ]; then
+            mv ${NORFW} ../ssc30kq_lte-nor.tgz
+            echo NORFW=ssc30kq_lte-nor.tgz >> ${GITHUB_ENV}
+            echo "✅ NOR firmware created: ssc30kq_lte-nor.tgz"
+          fi
+
+          NANDFW=$(find output/images -name openipc*nand*)
+          if [ ! -z ${NANDFW} ]; then
+            mv ${NANDFW} ../ssc30kq_lte-nand.tgz
+            echo NANDFW=ssc30kq_lte-nand.tgz >> ${GITHUB_ENV}
+            echo "✅ NAND firmware created: ssc30kq_lte-nand.tgz"
+          fi
+
+          if [ -z ${NORFW} ] && [ -z ${NANDFW} ]; then
+            echo "❌ No firmware files generated"
+            exit 1
+          fi
+
+      - name: Upload firmware to releases
+        if: env.NORFW || env.NANDFW
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          files: |
+            ${{env.NORFW}}
+            ${{env.NANDFW}}
+          body: |
+            ## SSC30KQ LTE Firmware
+            
+            **Features:**
+            - 📡 Huawei E3372h LTE modem support
+            - 🔒 WireGuard VPN integration  
+            - 🎥 FPV streaming capabilities
+            - 🛰️ MAVLink support for drones
+            - 📶 Dual connectivity: LTE + VPN
+            
+            **Build Info:**
+            - Commit: ${{env.GIT_HASH}}
+            - Branch: ${{env.GIT_BRANCH}}
+            - Build time: ${{env.TIME}}
+            - Date: ${{github.run_started_at}}
+            
+            **Installation:**
+            1. Flash `ssc30kq_lte-nor.tgz` to your SSC30KQ camera
+            2. Connect Huawei E3372h USB modem
+            3. Configure WireGuard in `/etc/wireguard.conf`
+            4. Reboot and enjoy LTE connectivity!
+
+      - name: Build summary
+        if: always()
+        run: |
+          echo "## 📊 Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "- **Platform:** SSC30KQ LTE" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build time:** ${{env.TIME}}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit:** ${{env.GIT_HASH}}" >> $GITHUB_STEP_SUMMARY
+          if [ ! -z "${{env.NORFW}}" ]; then
+            echo "- **NOR firmware:** ✅ ${{env.NORFW}}" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ ! -z "${{env.NANDFW}}" ]; then
+            echo "- **NAND firmware:** ✅ ${{env.NANDFW}}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- **Features:** LTE (E3372h) + WireGuard + FPV" >> $GITHUB_STEP_SUMMARY
