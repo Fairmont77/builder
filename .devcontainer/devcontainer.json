@@ -1,0 +1,17 @@
+{
+  "name": "OpenIPC Builder",
+  "image": "mcr.microsoft.com/devcontainers/base:ubuntu-22.04",
+  "features": {
+    "ghcr.io/devcontainers/features/common-utils:2": {},
+    "ghcr.io/devcontainers/features/git:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-vscode.makefile-tools"
+      ]
+    }
+  },
+  "postCreateCommand": "sudo apt-get update && sudo apt-get install -y build-essential git curl wget bc rsync unzip python3 python3-pip file cpio libtool automake autotools-dev tree patch bison flex gettext texinfo help2man gawk libtool-bin ncurses-dev pkg-config libssl-dev ca-certificates",
+  "remoteUser": "vscode"
+}
